@@ -66,9 +66,12 @@
             align-items: center;
         }
 
-        /* 【修改1】默认隐藏土星介绍框 */
+        /* 【修改1】默认隐藏土星介绍框 + 新增过渡动画 */
         .glass-panel {
             display: none;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.5s ease;
             background: rgba(5, 5, 5, 0.7);
             backdrop-filter: blur(12px);
             padding: 16px 20px;
@@ -78,6 +81,12 @@
             max-width: 280px;
             width: calc(100% - 40px);
             margin: 0 auto 20px;
+        }
+        /* 新增：显示状态动画类 */
+        .glass-panel.show {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
         }
 
         h1 {
@@ -117,10 +126,12 @@
             min-width: 120px;
         }
 
+        /* 【修改2】按钮Hover增强：发光+缩放 */
         .btn:hover {
             background: rgba(197, 160, 89, 0.1);
             border-color: #c5a059;
-            box-shadow: 0 0 15px rgba(197, 160, 89, 0.2);
+            box-shadow: 0 0 20px rgba(197, 160, 89, 0.4), 0 0 8px rgba(197, 160, 89, 0.6) inset;
+            transform: scale(1.02);
         }
 
         .btn-group {
@@ -132,9 +143,12 @@
             margin-bottom: 80px;
         }
 
-        /* 【修改2】默认隐藏操作提示 */
+        /* 【修改1】默认隐藏操作提示 + 新增过渡动画 */
         #control-tips {
             display: none;
+            opacity: 0;
+            transform: translateX(-10px);
+            transition: all 0.5s ease;
             position: absolute;
             bottom: 20px;
             left: 20px;
@@ -145,6 +159,12 @@
             pointer-events: none;
             line-height: 1.5;
             max-width: 80%;
+        }
+        /* 新增：显示状态动画类 */
+        #control-tips.show {
+            display: block;
+            opacity: 1;
+            transform: translateX(0);
         }
 
         #loading {
@@ -351,7 +371,7 @@
 
     <div id="fps-counter">物理引擎: 极致模式 | 环境: 太阳系模拟</div>
 
-    <!-- 着色器代码（保持不变） -->
+    <!-- 着色器代码（保持不变，仅修改关键部分） -->
     <script type="x-shader/x-vertex" id="vertexshader">
         attribute float size;
         attribute vec3 customColor;
@@ -444,6 +464,8 @@
         varying float vScaleFactor;
         varying float vIsRing;
 
+        uniform float uTime; // 新增：声明uTime变量
+
         void main() {
             vec2 cxy = 2.0 * gl_PointCoord - 1.0;
             float r = dot(cxy, cxy);
@@ -461,7 +483,9 @@
 
             float densityAlpha = 0.25 + 0.45 * smoothstep(0.0, 0.5, t);
 
-            vec3 finalColor = baseColor * brightness;
+            // 【修改5】土星粒子呼吸效果
+            float breath = 0.8 + 0.2 * sin(uTime * 0.5 + vDist * 0.01);
+            vec3 finalColor = baseColor * brightness * breath;
 
             if (vDist < 40.0) {
                 float closeMix = 1.0 - (vDist / 40.0);
@@ -509,7 +533,9 @@
             if (r > 1.0) discard;
 
             float noise = random(gl_FragCoord.xy);
-            float twinkle = 0.7 + 0.3 * sin(uTime * 2.0 + noise * 10.0);
+            // 【修改6】星空随机闪烁频率
+            float twinkleSpeed = 1.5 + random(gl_FragCoord.xy) * 2.0;
+            float twinkle = 0.6 + 0.4 * sin(uTime * twinkleSpeed + noise * 15.0);
 
             float glow = 1.0 - r;
             glow = pow(glow, 1.5);
@@ -992,14 +1018,13 @@
             // 5. 自动巡航/手势/鼠标状态判断
             const isControlsActive = controls._state !== -1 || targetScale !== 1.0;
             if (!isHandDetected && !isControlsActive) {
-                // 自动巡航
-                autoIdleTime += 0.005;
-                targetScale = 1.0 + Math.sin(autoIdleTime) * 0.2;
-                
-                // 自动缓慢旋转摄像头
-                camera.position.x = 100 * Math.sin(autoIdleTime * 0.2);
-                camera.position.z = 100 * Math.cos(autoIdleTime * 0.2);
-                camera.lookAt(0, 0, 0);
+                // 【修改7】优化自动巡航流畅度
+                autoIdleTime += 0.003; // 速度降低40%，更优雅
+                targetScale = 1.0 + Math.sin(autoIdleTime * 0.8) * 0.15; // 缩放幅度更小
+                // 新增Y轴轻微摆动，模拟真实视角
+                camera.position.x = 100 * Math.sin(autoIdleTime * 0.12); // 旋转速度降低40%
+                camera.position.y = 20 + Math.sin(autoIdleTime * 0.18) * 5; // 上下轻微摆动
+                camera.position.z = 100 * Math.cos(autoIdleTime * 0.12);
 
                 statusElement.innerHTML = "自动巡航";
                 statusElement.style.color = "#666";
@@ -1106,16 +1131,25 @@
             showToast('视角已重置');
         }
 
-        // 【修改5】重构toggleBackground函数，改为控制背景信息显示/隐藏
+        // 【修改8】重构toggleBackground函数，适配提示框动画
         function toggleBackground() {
             isInfoVisible = !isInfoVisible;
             if (isInfoVisible) {
-                glassPanel.style.display = 'block';
+                glassPanel.style.display = 'block'; // 先显示，再加动画类
                 controlTips.style.display = 'block';
+                setTimeout(() => { // 延迟加类触发动画
+                    glassPanel.classList.add('show');
+                    controlTips.classList.add('show');
+                }, 10);
                 showToast('背景信息已显示');
             } else {
-                glassPanel.style.display = 'none';
-                controlTips.style.display = 'none';
+                glassPanel.classList.remove('show');
+                controlTips.classList.remove('show');
+                // 动画完成后再隐藏
+                setTimeout(() => {
+                    glassPanel.style.display = 'none';
+                    controlTips.style.display = 'none';
+                }, 500);
                 showToast('背景信息已隐藏');
             }
         }
