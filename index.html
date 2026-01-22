@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>个人主页 - 粒子土星背景</title>
 
-    <!-- 本地路径引入（适配WSL目录） -->
+    <!-- 核心修改：所有依赖改为libs下的本地路径（不再依赖node_modules） -->
     <script src="libs/three.min.js"></script>
     <script src="libs/controls/TrackballControls.js"></script>
-    <script src="node_modules/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="node_modules/@mediapipe/control_utils/control_utils.js"></script>
-    <script src="node_modules/@mediapipe/drawing_utils/drawing_utils.js"></script>
-    <script src="node_modules/@mediapipe/hands/hands.js"></script>
+    <script src="libs/mediapipe/camera_utils.js"></script>
+    <script src="libs/mediapipe/control_utils.js"></script>
+    <script src="libs/mediapipe/drawing_utils.js"></script>
+    <script src="libs/mediapipe/hands.js"></script>
 
     <style>
         * {
@@ -66,7 +66,6 @@
             align-items: center;
         }
 
-        /* 【修改1】默认隐藏土星介绍框 + 新增过渡动画 */
         .glass-panel {
             display: none;
             opacity: 0;
@@ -82,7 +81,7 @@
             width: calc(100% - 40px);
             margin: 0 auto 20px;
         }
-        /* 新增：显示状态动画类 */
+
         .glass-panel.show {
             display: block;
             opacity: 1;
@@ -126,7 +125,6 @@
             min-width: 120px;
         }
 
-        /* 【修改2】按钮Hover增强：发光+缩放 */
         .btn:hover {
             background: rgba(197, 160, 89, 0.1);
             border-color: #c5a059;
@@ -143,7 +141,6 @@
             margin-bottom: 80px;
         }
 
-        /* 【修改1】默认隐藏操作提示 + 新增过渡动画 */
         #control-tips {
             display: none;
             opacity: 0;
@@ -160,7 +157,7 @@
             line-height: 1.5;
             max-width: 80%;
         }
-        /* 新增：显示状态动画类 */
+
         #control-tips.show {
             display: block;
             opacity: 1;
@@ -192,7 +189,6 @@
 
         .input_video { display: none; }
 
-        /* 新增：社交图标样式 */
         .social-icons {
             position: absolute;
             bottom: 20px;
@@ -268,7 +264,6 @@
             visibility: visible;
         }
 
-        /* 响应式适配 */
         @media (max-width: 768px) {
             .glass-panel {
                 padding: 12px 16px;
@@ -278,7 +273,6 @@
                 min-height: 40px;
                 min-width: 100px;
             }
-            /* 【修改3】手机端操作提示移到页面最底部 */
             #control-tips {
                 bottom: 0;
                 left: 0;
@@ -309,7 +303,6 @@
             }
         }
 
-        /* 背景隐藏状态（保留原样式，不影响核心功能） */
         .bg-hidden {
             opacity: 0;
             visibility: hidden;
@@ -337,12 +330,10 @@
         <div class="btn-group">
             <button class="btn" onclick="toggleFullScreen()">全屏模式</button>
             <button class="btn" onclick="resetView()">重置视角</button>
-            <!-- 【修改4】按钮文字改为“背景信息” -->
             <button class="btn" onclick="toggleBackground()">背景信息</button>
         </div>
     </div>
 
-    <!-- 新增：社交图标区域 -->
     <div class="social-icons">
         <div class="social-icon" onclick="openGithub()">
             <img src="images/github.png" alt="GitHub">
@@ -371,7 +362,6 @@
 
     <div id="fps-counter">物理引擎: 极致模式 | 环境: 太阳系模拟</div>
 
-    <!-- 着色器代码（保持不变，仅修改关键部分） -->
     <script type="x-shader/x-vertex" id="vertexshader">
         attribute float size;
         attribute vec3 customColor;
@@ -408,14 +398,13 @@
 
             vec3 pos = position;
 
-            // 土星自身旋转（核心：粒子自转，摄像头不动）
             if (isRing > 0.5) {
                 float angleOffset = uTime * orbitSpeed * 0.2;
                 vec2 rotatedXZ = rotate2d(angleOffset) * pos.xz;
                 pos.x = rotatedXZ.x;
                 pos.z = rotatedXZ.y;
             } else {
-                float bodyAngle = uTime * 0.03; // 土星本体自转速度
+                float bodyAngle = uTime * 0.03;
                 vec2 rotatedXZ = rotate2d(bodyAngle) * pos.xz;
                 pos.x = rotatedXZ.x;
                 pos.z = rotatedXZ.y;
@@ -464,7 +453,7 @@
         varying float vScaleFactor;
         varying float vIsRing;
 
-        uniform float uTime; // 新增：声明uTime变量
+        uniform float uTime;
 
         void main() {
             vec2 cxy = 2.0 * gl_PointCoord - 1.0;
@@ -483,7 +472,6 @@
 
             float densityAlpha = 0.25 + 0.45 * smoothstep(0.0, 0.5, t);
 
-            // 【修改5】土星粒子呼吸效果
             float breath = 0.8 + 0.2 * sin(uTime * 0.5 + vDist * 0.01);
             vec3 finalColor = baseColor * brightness * breath;
 
@@ -533,7 +521,6 @@
             if (r > 1.0) discard;
 
             float noise = random(gl_FragCoord.xy);
-            // 【修改6】星空随机闪烁频率
             float twinkleSpeed = 1.5 + random(gl_FragCoord.xy) * 2.0;
             float twinkle = 0.6 + 0.4 * sin(uTime * twinkleSpeed + noise * 15.0);
 
@@ -619,44 +606,36 @@
         let autoIdleTime = 0;
         let touchStartDistance = 0;
         
-        // 新增：背景信息显示状态（替代原背景显示状态）
         let isInfoVisible = false;
         
-        // 新增：手势旋转的目标角度和当前角度（用于平滑过渡）
-        let targetRotationX = 0; // 上下旋转角度
-        let targetRotationY = 0; // 左右旋转角度
+        let targetRotationX = 0;
+        let targetRotationY = 0;
         let currentRotationX = 0;
         let currentRotationY = 0;
-        const rotationSmoothFactor = 0.1; // 旋转平滑系数
+        const rotationSmoothFactor = 0.1;
 
         const videoElement = document.getElementsByClassName('input_video')[0];
         const statusElement = document.getElementById('status-indicator');
         const loadingElement = document.getElementById('loading');
         const canvasContainer = document.getElementById('canvas-container');
         const avatarIcon = document.querySelector('.avatar-icon');
-        // 新增：获取土星介绍框和操作提示元素
         const glassPanel = document.querySelector('.glass-panel');
         const controlTips = document.getElementById('control-tips');
 
-        // 初始化Three.js场景
         function initThree() {
             const container = document.getElementById('canvas-container');
 
-            // 1. 场景初始化
             scene = new THREE.Scene();
             scene.fog = new THREE.FogExp2(0x020202, 0.00015);
 
-            // 2. 相机初始化（TrackballControls控制此相机）
             camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 10000);
-            camera.position.set(0, 20, 100); // 初始位置
-            camera.lookAt(0, 0, 0); // 始终看向土星中心
+            camera.position.set(0, 20, 100);
+            camera.lookAt(0, 0, 0);
 
-            // 3. 初始化土星、星空、背景行星
             initSaturn();
             initStarfield();
             initPlanets();
 
-            // 4. 渲染器初始化
             renderer = new THREE.WebGLRenderer({
                 antialias: true,
                 alpha: true,
@@ -667,26 +646,22 @@
             renderer.setClearColor(0x000000, 0);
             container.appendChild(renderer.domElement);
 
-            // 5. 初始化TrackballControls（核心：无限旋转摄像头）
             controls = new THREE.TrackballControls(camera, renderer.domElement);
-            controls.rotateSpeed = 1.2; // 旋转速度
-            controls.zoomSpeed = 1.5;   // 缩放速度
-            controls.panSpeed = 0.8;    // 平移速度（禁用，只保留旋转/缩放）
-            controls.noPan = true;      // 禁用平移，只允许旋转和缩放
-            controls.noZoom = false;    // 允许缩放
-            controls.staticMoving = false; // 惯性旋转
-            controls.dynamicDampingFactor = 0.08; // 惯性阻尼
-            // TrackballControls默认支持无限旋转，无需额外配置
+            controls.rotateSpeed = 1.2;
+            controls.zoomSpeed = 1.5;
+            controls.panSpeed = 0.8;
+            controls.noPan = true;
+            controls.noZoom = false;
+            controls.staticMoving = false;
+            controls.dynamicDampingFactor = 0.08;
 
-            // 6. 窗口适配
             window.addEventListener('resize', () => {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
-                controls.handleResize(); // TrackballControls适配窗口大小
+                controls.handleResize();
             });
 
-            // 7. 手机端触摸缩放（兼容TrackballControls）
             let touchStartX = 0, touchStartY = 0;
             document.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 1) {
@@ -702,7 +677,6 @@
             document.addEventListener('touchmove', (e) => {
                 e.preventDefault();
                 if (e.touches.length === 2) {
-                    // 双指缩放
                     const touch1 = e.touches[0];
                     const touch2 = e.touches[1];
                     const dist = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
@@ -712,11 +686,9 @@
                 }
             }, { passive: false });
 
-            // 启动动画循环
             animate();
         }
 
-        // 初始化土星粒子（保留自身旋转）
         function initSaturn() {
             const particleCount = 1200000;
             const geometry = new THREE.BufferGeometry();
@@ -750,7 +722,6 @@
                 randomIds[i] = Math.random();
 
                 if (i < particleCount * 0.25) {
-                    // 土星本体粒子
                     isRingVal = 0.0;
                     speed = 0.0;
                     const u = Math.random();
@@ -774,7 +745,6 @@
                     size = 1.0 + Math.random() * 0.8;
                     opacity = 0.8;
                 } else {
-                    // 土星环粒子
                     isRingVal = 1.0;
                     let zoneRand = Math.random();
                     let ringRadius;
@@ -847,11 +817,10 @@
             });
 
             particles = new THREE.Points(geometry, material);
-            particles.rotation.z = 26.73 * (Math.PI / 180); // 土星轴倾角
+            particles.rotation.z = 26.73 * (Math.PI / 180);
             scene.add(particles);
         }
 
-        // 初始化星空背景
         function initStarfield() {
             const starCount = 50000;
             const geo = new THREE.BufferGeometry();
@@ -935,7 +904,6 @@
             scene.add(nebula);
         }
 
-        // 初始化背景行星
         function initPlanets() {
             planetGroup = new THREE.Group();
             scene.add(planetGroup);
@@ -977,7 +945,6 @@
             group.add(mesh);
         }
 
-        // 动画循环
         const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
@@ -986,14 +953,11 @@
             uniforms.uTime.value = elapsedTime;
             if(starUniforms) starUniforms.uTime.value = elapsedTime;
 
-            // 1. 更新TrackballControls（核心：摄像头旋转）
             controls.update();
 
-            // 2. 土星自身旋转（粒子动画）
             if(stars) stars.rotation.y = elapsedTime * 0.005;
             if(nebula) nebula.rotation.y = elapsedTime * 0.003;
 
-            // 3. 背景行星旋转
             if(planetGroup) {
                 planetGroup.children.forEach((planet, idx) => {
                     planet.rotation.y = elapsedTime * (0.05 + idx * 0.02);
@@ -1001,29 +965,23 @@
                 planetGroup.rotation.y = Math.sin(elapsedTime * 0.05) * 0.02;
             }
 
-            // 4. 处理手势旋转的平滑过渡
             if (isHandDetected) {
-                // 平滑插值旋转角度
                 currentRotationX += (targetRotationX - currentRotationX) * rotationSmoothFactor;
                 currentRotationY += (targetRotationY - currentRotationY) * rotationSmoothFactor;
                 
-                // 根据旋转角度计算摄像头位置
-                const radius = 100; // 摄像头到土星中心的距离
+                const radius = 100;
                 camera.position.x = radius * Math.sin(currentRotationY) * Math.cos(currentRotationX);
                 camera.position.y = radius * Math.sin(currentRotationX);
                 camera.position.z = radius * Math.cos(currentRotationY) * Math.cos(currentRotationX);
                 camera.lookAt(0, 0, 0);
             }
 
-            // 5. 自动巡航/手势/鼠标状态判断
             const isControlsActive = controls._state !== -1 || targetScale !== 1.0;
             if (!isHandDetected && !isControlsActive) {
-                // 【修改7】优化自动巡航流畅度
-                autoIdleTime += 0.003; // 速度降低40%，更优雅
-                targetScale = 1.0 + Math.sin(autoIdleTime * 0.8) * 0.15; // 缩放幅度更小
-                // 新增Y轴轻微摆动，模拟真实视角
-                camera.position.x = 100 * Math.sin(autoIdleTime * 0.12); // 旋转速度降低40%
-                camera.position.y = 20 + Math.sin(autoIdleTime * 0.18) * 5; // 上下轻微摆动
+                autoIdleTime += 0.003;
+                targetScale = 1.0 + Math.sin(autoIdleTime * 0.8) * 0.15;
+                camera.position.x = 100 * Math.sin(autoIdleTime * 0.12);
+                camera.position.y = 20 + Math.sin(autoIdleTime * 0.18) * 5;
                 camera.position.z = 100 * Math.cos(autoIdleTime * 0.12);
 
                 statusElement.innerHTML = "自动巡航";
@@ -1036,18 +994,16 @@
                 statusElement.style.color = "#87ceeb";
             }
 
-            // 6. 缩放插值（兼容手势/滚轮/自动巡航）
             const lerpFactor = 0.08;
             currentScale += (targetScale - currentScale) * lerpFactor;
             uniforms.uScale.value = currentScale;
 
-            // 7. 渲染场景（始终渲染，不再控制背景显示）
             renderer.render(scene, camera);
         }
 
-        // 初始化手势识别
+        // 核心修改：hands的locateFile指向libs/mediapipe（不再依赖node_modules）
         const hands = new Hands({
-            locateFile: (file) => `node_modules/@mediapipe/hands/${file}`
+            locateFile: (file) => `libs/mediapipe/${file}`
         });
 
         hands.setOptions({
@@ -1059,7 +1015,6 @@
 
         hands.onResults(onResults);
 
-        // 手势控制逻辑
         function onResults(results) {
             loadingElement.style.display = 'none';
 
@@ -1067,33 +1022,25 @@
                 isHandDetected = true;
                 const hand = results.multiHandLandmarks[0];
 
-                // 1. 手势缩放（保留原有逻辑）
-                const p1 = hand[4]; // 拇指指尖
-                const p2 = hand[8]; // 食指指尖
+                const p1 = hand[4];
+                const p2 = hand[8];
                 const dist = Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2);
                 const normDist = Math.max(0, Math.min(1, (dist - 0.02) / 0.25));
                 targetScale = 0.15 + normDist * 2.35;
 
-                // 2. 手势旋转（核心修改部分）
-                // 使用手掌中心（第9个关键点）作为旋转控制参考点
                 const palmCenter = hand[9];
                 
-                // 映射手掌X坐标到左右旋转角度（-π 到 π）
-                // 0.1~0.9 是手势识别的有效范围，避免边缘无效区域
                 const normX = Math.max(0.1, Math.min(0.9, palmCenter.x));
-                targetRotationY = (normX - 0.5) * Math.PI * 2; // 左右旋转 ±π
+                targetRotationY = (normX - 0.5) * Math.PI * 2;
                 
-                // 映射手掌Y坐标到上下旋转角度（-π/4 到 π/4）
-                // 限制上下旋转范围，避免摄像头翻转
                 const normY = Math.max(0.1, Math.min(0.9, palmCenter.y));
-                targetRotationX = (0.5 - normY) * Math.PI / 2; // 上下旋转 ±π/4
+                targetRotationX = (0.5 - normY) * Math.PI / 2;
 
             } else {
                 isHandDetected = false;
             }
         }
 
-        // 启动摄像头
         const cameraUtils = new Camera(videoElement, {
             onFrame: async () => {
                 await hands.send({image: videoElement});
@@ -1107,7 +1054,6 @@
             loadingElement.innerText = "摄像头启动失败（请允许权限）";
         });
 
-        // 自定义功能函数
         function toggleFullScreen() {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().catch(err => {
@@ -1119,7 +1065,6 @@
         }
 
         function resetView() {
-            // 重置摄像头位置和缩放
             targetScale = 1.0;
             targetRotationX = 0;
             targetRotationY = 0;
@@ -1127,17 +1072,16 @@
             currentRotationY = 0;
             camera.position.set(0, 20, 100);
             camera.lookAt(0, 0, 0);
-            controls.reset(); // 重置TrackballControls
+            controls.reset();
             showToast('视角已重置');
         }
 
-        // 【修改8】重构toggleBackground函数，适配提示框动画
         function toggleBackground() {
             isInfoVisible = !isInfoVisible;
             if (isInfoVisible) {
-                glassPanel.style.display = 'block'; // 先显示，再加动画类
+                glassPanel.style.display = 'block';
                 controlTips.style.display = 'block';
-                setTimeout(() => { // 延迟加类触发动画
+                setTimeout(() => {
                     glassPanel.classList.add('show');
                     controlTips.classList.add('show');
                 }, 10);
@@ -1145,7 +1089,6 @@
             } else {
                 glassPanel.classList.remove('show');
                 controlTips.classList.remove('show');
-                // 动画完成后再隐藏
                 setTimeout(() => {
                     glassPanel.style.display = 'none';
                     controlTips.style.display = 'none';
@@ -1154,7 +1097,6 @@
             }
         }
 
-        // 新增：社交图标交互函数
         function openGithub() {
             window.open('https://github.com/notcharlatan', '_blank');
         }
@@ -1165,7 +1107,6 @@
 
         function showEmail() {
             showToast('邮箱：jiang-hu-pian-zi@qq.com');
-            // 可选：复制邮箱到剪贴板
             navigator.clipboard.writeText('jiang-hu-pian-zi@qq.com').then(() => {
                 setTimeout(() => {
                     showToast('邮箱已复制到剪贴板 ✅');
@@ -1175,18 +1116,14 @@
             });
         }
 
-        // 新增：头像互动函数（简易旋转+缩放+提示）
         function avatarInteraction() {
-            // 添加旋转动画
             avatarIcon.style.transition = 'all 0.8s ease';
             avatarIcon.style.transform = 'scale(1.2) rotate(360deg)';
             
-            // 重置动画
             setTimeout(() => {
                 avatarIcon.style.transform = 'scale(1) rotate(0deg)';
             }, 800);
             
-            // 显示个性签名提示
             showToast('保持热爱，奔赴山海 ✨');
         }
 
@@ -1217,7 +1154,6 @@
             }, 2000);
         }
 
-        // 启动初始化
         initThree();
     </script>
 </body>
